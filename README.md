@@ -2,6 +2,8 @@
 
 A local agent and Docker test bench for MiniGPT. Run the agent, inspect its tool calls, compare two real GPT checkpoints, and work through three defensive exercises accompanying [LLM Attacks Explained](https://youtu.be/1WJdmvMoWgE).
 
+![Testing lab with measured and passed checks](docs/screenshots/testing-lab.png)
+
 ## Run on Windows
 
 Start Docker Desktop with its Linux engine. Open PowerShell and run:
@@ -63,6 +65,26 @@ docker compose down
 ```
 
 If port 7860 is occupied, set `$env:MINIGPT_PORT = '7861'` before starting Compose and open that port. For API exploration, visit [the local FastAPI documentation](http://127.0.0.1:7860/docs).
+
+## Validation
+
+Run the model and HTTP integration tests inside your running container. They start a second server with temporary storage, including for checkpoint training and reload.
+
+```powershell
+docker compose exec -T lab python -m unittest discover -s tests -v
+```
+
+The browser smoke test checks the live interface, including a rejected document write, session persistence on reload, text generation, charts, evidence and mobile navigation. It adds real check records to run history. Run it from the project directory with Node and Edge installed.
+
+```powershell
+$testTools = Join-Path $env:TEMP 'minigpt-ui-test-tools'
+npm.cmd install --prefix $testTools playwright-core@1.56.1 --no-audit --no-fund
+$env:NODE_PATH = Join-Path $testTools 'node_modules'
+$env:BROWSER_PATH = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+node tests/browser.cjs
+```
+
+[Agent console screenshot](docs/screenshots/agent-console.png) · [Training studio screenshot](docs/screenshots/training-studio.png)
 
 ## Source and data credits
 

@@ -1,0 +1,6 @@
+__pycache__/
+state/
+ui/node_modules/
+ui/dist/
+.venv/
+PHASE-1.md

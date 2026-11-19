@@ -1,0 +1,17 @@
+services:
+  lab:
+    build: .
+    ports:
+      - "127.0.0.1:${MINIGPT_PORT:-7860}:7860"
+    environment:
+      MINIGPT_STATE: /app/state
+    volumes:
+      - lab_state:/app/state
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+volumes:
+  lab_state:
