@@ -2,7 +2,25 @@
 
 A Docker-hosted learning room where you interview a local agent, inspect its tool results and submit findings. Six tasks cover the model, training privacy, output disclosure, agent memory, dependency verification and inference budgets. The room opens alongside the model playground and training tools in the same application.
 
-![Guided room showing the memory custodian, the task objective and live chat evidence](docs/screenshots/guided-room.png)
+## System architecture
+
+Follow a learner’s message across the top of the diagram. Python selects a handler from the task, message source and session state. Some handlers read metadata or verify a finding. Others call the local PyTorch model. The two highlighted budget paths show where a single extra requested token changes the outcome.
+
+<a href="docs/architecture.svg">
+  <picture>
+    <source media="(prefers-reduced-motion: reduce)" srcset="docs/architecture-static.png">
+    <img src="docs/architecture.svg" alt="MiniGPT request and training flows. A Python router selects local tools. The budget check permits 12 tokens and rejects 13 before inference. SQLite saves the evidence. A separate CPU training job produces the active checkpoint.">
+  </picture>
+</a>
+
+| Decision | Where it happens | What the learner can verify |
+| --- | --- | --- |
+| Has this room turn already run? | FastAPI looks up the session and request ID inside the room transaction. | Retrying the same turn returns its recorded result. |
+| May this source change memory? | The memory handler checks the source before committing a preference. The learner selects the source to simulate provenance. | A document can propose a change. Reading the preference shows whether the original value survived. |
+| What text will the recipient see? | The publication filter masks addresses ending in `@example.test`. | The disclosure exercise shows the synthetic draft alongside its published form. |
+| Should inference start? | The token-budget handler compares the requested output length with its 12-token allowance. | At the limit, the decoder can run. One token over, the evidence records zero generation calls. |
+
+Training follows a separate path. A completed CPU run writes a checkpoint to the Docker volume, then the server activates it. On startup, the server loads the saved Kaggle checkpoint when available and otherwise uses the bundled one. For a trace from your own session, open **Agent architecture** after sending a message in the room. [Explore the local room](http://127.0.0.1:7860/#guided-room)
 
 ## Run on Windows
 
@@ -18,6 +36,8 @@ Start-Process 'http://127.0.0.1:7860'
 The first build downloads Python 3.11, CPU PyTorch and the React build tools. Both checkpoints and the verified Kaggle archive ship with the project. Training and inference run on your computer. The optional video loads from YouTube when you press play.
 
 ## Play the room
+
+![Guided room showing the memory custodian, the task objective and live chat evidence](docs/screenshots/guided-room.png)
 
 1. Open **Meet your model → Open agent**. Type `inspect your checkpoint`. Read the context length in the response and submit your finding in the task brief.
 2. Type `show me task 2` to switch roles and run the split comparison. Ask `what does that mean?` to interpret your evidence. You can select any task directly in the left panel.
@@ -46,28 +66,7 @@ Open **Test a token budget** or use the [local exercise shortcut](http://127.0.0
 
 Submit the number of model calls made by the rejected request. Here a call means one invocation of the generation routine. The budget applies to this exercise. Traffic quotas, concurrency limits and timeouts are separate controls. [Exercise screenshot](docs/screenshots/token-budget.png)
 
-## How a room turn works
-
-Open **Agent architecture** and select a component. After a turn, the walkthrough uses the current task’s latest recorded message, tool name and evidence. The model panel reads the active checkpoint’s configuration.
-
-```mermaid
-flowchart LR
-    UI[React room] --> API[FastAPI validation]
-    API --> Router[Task and source router]
-    Router --> Tools[Local inspection tools]
-    Router --> Guard[LLM10 output budget]
-    Guard -->|Within allowance| GPT[CPU MiniGPT decoder]
-    Guard -->|Over allowance| Evidence[Decision and counts]
-    GPT --> Evidence
-    Tools --> Evidence
-    Router -->|Hint or answer| Record[SQLite turn and task state]
-    Evidence --> Record
-    Record --> UI
-```
-
-The browser sends a session ID, request ID, task, source and text. FastAPI validates the request and reuses the stored response on a retry. Python handlers choose the operation. The server commits the evidence and updated task state in one transaction before returning the result. [Architecture screenshot](docs/screenshots/architecture.png)
-
-The role dialogue uses a local, task-aware router. Each observed result names the tool that produced it. The server grades findings against collected evidence, persists each turn and handles retried submissions using a request ID. Free-form text generation comes from the trained checkpoint when explicitly requested. The source selector is an educational simulation of provenance.
+The agent grades the finding against the observations already collected for that task. SQLite commits the reply, evidence and updated task state together. The room can then restore the conversation and progress on reload. [Inspect the architecture walkthrough](docs/screenshots/architecture.png)
 
 ## Workspace
 

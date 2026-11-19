@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1140" viewBox="0 0 1000 1140" role="img" aria-labelledby="title desc">
+  <title id="title">MiniGPT architecture — how a room turn becomes evidence</title>
+  <desc id="desc">The React client sends a room turn to FastAPI. A Python router selects a local tool. In the budget exercise, a request for twelve tokens reaches MiniGPT and a request for thirteen stops before inference. SQLite stores both decisions and the browser displays them. A separate training path prepares Kaggle text, trains a CPU decoder and saves its checkpoint.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 8 4 0 8Z" fill="#497263"/>
+    </marker>
+    <style>
+      text {font-family:"Segoe UI",Arial,sans-serif;fill:#162f2a}
+      .title {font-size:36px;font-weight:700;letter-spacing:-1.3px;fill:#f2faf3}
+      .section {font-size:13px;font-weight:700;letter-spacing:1.35px;fill:#406254}
+      .on-dark {fill:#b5edc3}
+      .heading {font-size:21px;font-weight:650;letter-spacing:-.4px}
+      .copy {font-size:16px;fill:#3e544c}
+      .label {font-size:15px;font-weight:650}
+      .card {fill:#fff;stroke:#c2d1c7;stroke-width:1.3}
+      .wire {fill:none;stroke:#497263;stroke-width:2;stroke-linejoin:round;marker-end:url(#arrow)}
+      .divider {stroke:#d6e1d8;stroke-width:1}
+      .allow,.deny {fill:none;stroke-width:3;opacity:.35}
+      .allow {stroke:#379065;animation:allow 8s ease-in-out infinite}
+      .deny {stroke:#b86c29;animation:deny 8s ease-in-out infinite}
+      @keyframes allow {0%,42%,100%{opacity:1}50%,92%{opacity:.13}}
+      @keyframes deny {0%,42%,100%{opacity:.13}50%,92%{opacity:1}}
+      .signal {fill:none;stroke:#e2ffe7;stroke-width:2;stroke-dasharray:5 55;animation:flow 2.5s linear infinite}
+      @keyframes flow {to{stroke-dashoffset:-60}}
+      @media (prefers-reduced-motion:reduce){.allow,.deny{animation:none;opacity:.75}.signal{display:none}}
+    </style>
+  </defs>
+  <rect width="1000" height="1140" rx="20" fill="#f4f7f2"/>
+  <path d="M20 0H980Q1000 0 1000 20V100H0V20Q0 0 20 0Z" fill="#193a30"/>
+  <text x="32" y="33" class="section on-dark">MINIGPT  /  SYSTEM ARCHITECTURE</text>
+  <text x="32" y="77" class="title">How a room turn becomes evidence</text>
+
+  <!-- Room entry points. The router is application code and the model is invoked conditionally. -->
+  <text x="32" y="136" class="section">REQUEST PATH</text>
+  <text x="968" y="136" class="copy" text-anchor="end">Local Docker service · 127.0.0.1:7860</text>
+  <g>
+    <rect x="32" y="154" width="252" height="111" rx="10" class="card"/>
+    <text x="49" y="187" class="heading">React room</text>
+    <text x="49" y="216" class="copy">Task, message and source</text>
+    <text x="49" y="240" class="copy">Session ID + request ID</text>
+    <path d="M284 209H326" class="wire"/>
+    <path d="M285 209H318" class="signal"/>
+    <rect x="330" y="154" width="279" height="111" rx="10" class="card"/>
+    <text x="347" y="187" class="heading">FastAPI</text>
+    <text x="347" y="216" class="copy">Validate fields and text length.</text>
+    <text x="347" y="240" class="copy">Return saved turn on retry.</text>
+    <path d="M609 209H650" class="wire"/>
+    <path d="M610 209H642" class="signal"/>
+    <rect x="654" y="154" width="314" height="111" rx="10" class="card"/>
+    <text x="671" y="187" class="heading">Python task router</text>
+    <text x="671" y="216" class="copy">Load session and task state.</text>
+    <text x="671" y="240" class="copy">Select the handler for this turn.</text>
+    <path d="M811 265V286H257V306" class="wire"/>
+    <path d="M811 286V306" class="wire"/>
+  </g>
+
+  <!-- Both budget outcomes remain readable at every animation frame. -->
+  <g>
+    <rect x="32" y="310" width="450" height="268" rx="12" class="card"/>
+    <text x="52" y="339" class="section">LOCAL HANDLERS</text>
+    <text x="52" y="369" class="heading">What can this task do?</text>
+    <text x="52" y="400" class="label">Model &amp; data</text>
+    <text x="52" y="422" class="copy">Inspect the checkpoint or compare split losses.</text>
+    <text x="52" y="452" class="label">Memory &amp; disclosure</text>
+    <text x="52" y="474" class="copy">Check the source on writes. Mask test addresses</text>
+    <text x="52" y="495" class="copy">when publishing generated text or a sample note.</text>
+    <text x="52" y="527" class="label">Dependencies &amp; findings</text>
+    <text x="52" y="549" class="copy">Verify a package pin or grade a saved observation.</text>
+
+    <rect x="504" y="310" width="464" height="268" rx="12" class="card"/>
+    <text x="524" y="339" class="section">TOKEN-BUDGET EXERCISE  /  OWASP LLM10</text>
+    <text x="524" y="369" class="heading">Should the decoder run?</text>
+    <text x="524" y="396" class="copy">Compare the requested maximum with 12 tokens.</text>
+    <rect x="524" y="412" width="424" height="62" rx="8" fill="#e9f5eb"/>
+    <rect x="524" y="412" width="424" height="62" rx="8" class="allow"/>
+    <text x="540" y="438" class="label">12 requested · Allow</text>
+    <text x="540" y="460" class="copy">One generation call · up to 12 new tokens</text>
+    <rect x="524" y="489" width="424" height="62" rx="8" fill="#fbf1e5"/>
+    <rect x="524" y="489" width="424" height="62" rx="8" class="deny"/>
+    <text x="540" y="515" class="label">13 requested · Reject</text>
+    <text x="540" y="537" class="copy">Return the decision · zero generation calls</text>
+    <path d="M736 578V598H257" fill="none" stroke="#497263" stroke-width="2"/>
+    <path d="M257 578V617" class="wire"/>
+  </g>
+
+  <rect x="32" y="622" width="450" height="81" rx="10" class="card"/>
+  <text x="52" y="653" class="heading">SQLite transaction</text>
+  <text x="52" y="680" class="copy">Save the turn, evidence and task state together.</text>
+  <path d="M482 662H521" class="wire"/>
+  <rect x="526" y="622" width="442" height="81" rx="10" class="card"/>
+  <text x="546" y="653" class="heading">Evidence in the browser</text>
+  <text x="546" y="680" class="copy">Read the outcome, ask for a hint or submit a finding.</text>
+
+  <path d="M32 730H968" class="divider"/>
+  <text x="32" y="760" class="section">MODEL LIFECYCLE</text>
+  <text x="968" y="760" class="copy" text-anchor="end">Training Studio starts a separate CPU training job.</text>
+  <rect x="32" y="778" width="253" height="105" rx="10" class="card"/>
+  <text x="49" y="810" class="heading">Kaggle Q&amp;A</text>
+  <text x="49" y="839" class="copy">Split by question. Fit a</text>
+  <text x="49" y="861" class="copy">training-only character vocab.</text>
+  <path d="M285 830H321" class="wire"/>
+  <rect x="326" y="778" width="291" height="105" rx="10" class="card"/>
+  <text x="343" y="810" class="heading">Train MiniGPT in PyTorch</text>
+  <text x="343" y="839" class="copy">Predict the next token with</text>
+  <text x="343" y="861" class="copy">masked attention and AdamW.</text>
+  <path d="M617 830H651" class="wire"/>
+  <rect x="656" y="778" width="312" height="105" rx="10" class="card"/>
+  <text x="673" y="810" class="heading">Activate checkpoint</text>
+  <text x="673" y="839" class="copy">Save on completion. Load weights</text>
+  <text x="673" y="861" class="copy">for inference and evaluation.</text>
+  <text x="32" y="916" class="copy">Docker volume</text>
+  <text x="148" y="916" class="label">lab_state</text>
+  <text x="235" y="916" class="copy">persists the SQLite database and latest completed Kaggle checkpoint.</text>
+  <path d="M32 942H968" class="divider"/>
+  <text x="32" y="975" class="section">OTHER ROUTES THROUGH THE SAME LOCAL SERVICE</text>
+  <rect x="32" y="995" width="936" height="119" rx="10" class="card"/>
+  <text x="52" y="1027" class="label">Agent console</text>
+  <text x="282" y="1027" class="copy">Route tasks to tools or generation. Store the trace and session preferences.</text>
+  <path d="M52 1039H948" class="divider"/>
+  <text x="52" y="1063" class="label">Model playground</text>
+  <text x="282" y="1063" class="copy">Select Kaggle or the bundled BPE demo. Sample locally and filter the output.</text>
+  <path d="M52 1075H948" class="divider"/>
+  <text x="52" y="1099" class="label">Testing lab &amp; run history</text>
+  <text x="282" y="1099" class="copy">Run defensive checks and read their timestamped evidence from SQLite.</text>
+</svg>
