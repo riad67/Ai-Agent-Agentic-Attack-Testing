@@ -1,8 +1,8 @@
-# Ai-Agent-Agentic-Attack-Testing
+# MiniGPT · LLM Security Field Lab
 
-A local agent and Docker test bench for MiniGPT. Run the agent, inspect its tool calls, compare two real GPT checkpoints, and work through three defensive exercises accompanying [LLM Attacks Explained](https://youtu.be/1WJdmvMoWgE).
+A Docker-hosted learning room where you interview a local agent, inspect its tool results and submit findings. Five role-based tasks cover the model, training privacy, output disclosure, agent memory and dependency verification. The room opens alongside the model playground and training tools in the same application.
 
-![Testing lab with measured and passed checks](docs/screenshots/testing-lab.png)
+![Guided room showing the memory custodian, the task objective and live chat evidence](docs/screenshots/guided-room.png)
 
 ## Run on Windows
 
@@ -16,6 +16,26 @@ Start-Process 'http://127.0.0.1:7860'
 ```
 
 The first build downloads Python 3.11, CPU PyTorch and the React build tools. Both checkpoints and the verified Kaggle archive ship with the project. Training and inference run on your computer. The optional video loads from YouTube when you press play.
+
+## Play the room
+
+1. Open **Meet your model → Open agent**. Type `inspect your checkpoint`. Read the context length in the response and submit your finding in the task brief.
+2. Type `show me task 2` to switch roles and run the split comparison. Ask `what does that mean?` to interpret your evidence. You can select any task directly in the left panel.
+3. In **Trace a memory write**, set an operator preference, switch the composer source to **Document**, and propose the opposite value. Switch back to **Operator** and ask the agent to read its memory. Submit the value you observe.
+
+Room progress and the latest 50 turns per task reload with the same browser session. Completing all five tasks unlocks **New attempt**. Use **Workspace** at the top right to access the other tools. [Companion video](https://youtu.be/1WJdmvMoWgE) · [Room format reference](https://tryhackme.com/room/llmsecurity)
+
+| Task | What supplies the evidence |
+| --- | --- |
+| Meet your model | The loaded MiniGPT checkpoint. Type `Generate: The model` for a real character-level continuation. |
+| Compare the splits | Measured losses for fixed training and validation windows. The comparison is at the group level. |
+| Review a disclosure | A fresh synthetic case reference and a user-selectable test address passed through the publication filter. |
+| Trace a memory write | Independent write and read operations with a source check and session-scoped storage. |
+| Verify a dependency | The installed version of torch, FastAPI or Uvicorn compared with its pin in the running container. |
+
+The role dialogue uses a local, task-aware router. Each observed result names the tool that produced it. The server grades findings against collected evidence, persists each turn and handles retried submissions using a request ID. Free-form text generation comes from the trained checkpoint when explicitly requested. The source selector is an educational simulation of provenance.
+
+## Workspace
 
 | Page | What to try |
 | --- | --- |

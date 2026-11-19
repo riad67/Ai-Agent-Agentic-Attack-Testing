@@ -3,6 +3,7 @@ import os
 import sqlite3
 import threading
 import re
+from importlib.metadata import version
 from uuid import UUID
 from contextlib import asynccontextmanager, closing
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from engine.checks import SessionMemory, exercise, publish
 from engine.language import ROOT, Loaded, corpus, train
+from engine.room import KEYS, LESSONS, blank, respond
 
 STATE = Path(os.environ.get("MINIGPT_STATE", ROOT / "state"))
 SCENARIOS = ("membership", "inversion", "memory")
@@ -40,6 +42,9 @@ async def lifespan(app):
         db.execute("CREATE TABLE IF NOT EXISTS turns (id INTEGER PRIMARY KEY, session TEXT, payload TEXT)")
         db.execute("CREATE INDEX IF NOT EXISTS turns_session ON turns(session, id)")
         db.execute("CREATE TABLE IF NOT EXISTS preferences (session TEXT PRIMARY KEY, value TEXT)")
+        db.execute("CREATE TABLE IF NOT EXISTS room_tasks (session TEXT, task TEXT, state TEXT, PRIMARY KEY(session,task))")
+        db.execute("CREATE TABLE IF NOT EXISTS room_messages (id INTEGER PRIMARY KEY, session TEXT, task TEXT, request TEXT, payload TEXT, UNIQUE(session,request))")
+        db.execute("CREATE INDEX IF NOT EXISTS room_conversation ON room_messages(session,task,id)")
         db.commit()
     torch.set_num_threads(2)
     latest = STATE / "kaggle.pt"
@@ -241,6 +246,66 @@ def agent(body: AgentRequest):
             "at": datetime.now(timezone.utc).isoformat()}
     with closing(connect()) as db, db:
         db.execute("INSERT INTO turns(session,payload) VALUES (?,?)", (sid, json.dumps(turn)))
+    return turn
+
+
+class RoomInput(BaseModel):
+    request: UUID
+    task: Literal["intro", "privacy", "release", "memory", "review"]
+    mode: Literal["chat", "document", "answer"] = "chat"
+    text: str = Field(min_length=1, max_length=1500)
+
+
+def installed_package(name):
+    pins = (ROOT / "requirements.txt").read_text().splitlines()
+    pin = next(line.split("==", 1)[1] for line in pins if line.startswith(name + "=="))
+    return version(name), pin
+
+
+@app.get("/api/room/{session}")
+def room_snapshot(session: UUID):
+    with closing(connect()) as db:
+        db.execute("BEGIN")
+        states = {key: json.loads(state) for key, state in db.execute(
+            "SELECT task,state FROM room_tasks WHERE session=?", (str(session),))}
+        conversations = {}
+        for key in KEYS:
+            rows = db.execute("SELECT payload FROM room_messages WHERE session=? AND task=? ORDER BY id DESC LIMIT 50",
+                              (str(session), key)).fetchall()
+            conversations[key] = [json.loads(row[0]) for row in reversed(rows)]
+    return {"lessons": LESSONS, "completed": [key for key, s in states.items() if s["complete"]],
+            "conversations": conversations}
+
+
+@app.post("/api/room/{session}/turn")
+def room_turn(session: UUID, body: RoomInput):
+    sid, request, text = str(session), str(body.request), body.text.strip()
+    if not text:
+        raise HTTPException(422, "Enter a message or an answer.")
+    key = body.task
+    jump = re.fullmatch(r"(?:.*?\b)?task\s*#?\s*([1-5])(?:\s+(?:demo|demonstration|please))?[.!? ]*", text, re.I)
+    if jump and body.mode == "chat":
+        key = LESSONS[int(jump[1]) - 1]["key"]
+    lesson = next(item for item in LESSONS if item["key"] == key)
+    with closing(connect()) as db, db:
+        db.execute("BEGIN IMMEDIATE")
+        previous = db.execute("SELECT payload FROM room_messages WHERE session=? AND request=?", (sid, request)).fetchone()
+        if previous:
+            return json.loads(previous[0])
+        row = db.execute("SELECT state FROM room_tasks WHERE session=? AND task=?", (sid, key)).fetchone()
+        state = json.loads(row[0]) if row else blank()
+        if jump and body.mode == "chat":
+            if re.search(r"\b(demo|demonstration|gimme|show|give)\b", text, re.I) and key != "memory":
+                outcome = respond(lesson, state, lesson["prompt"], "chat", models["kaggle"], splits, installed_package)
+            else:
+                outcome = {"reply": lesson["greeting"], "tool": "room.open", "evidence": []}
+        else:
+            outcome = respond(lesson, state, text, body.mode, models["kaggle"], splits, installed_package)
+        turn = dict(outcome, task=key, complete=state["complete"], request=request, mode=body.mode, text=text,
+                    at=datetime.now(timezone.utc).isoformat())
+        db.execute("INSERT OR REPLACE INTO room_tasks VALUES (?,?,?)", (sid, key, json.dumps(state)))
+        db.execute("INSERT INTO room_messages(session,task,request,payload) VALUES (?,?,?,?)",
+                   (sid, key, request, json.dumps(turn)))
     return turn
 
 

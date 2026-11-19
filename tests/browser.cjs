@@ -12,6 +12,55 @@ async function main() {
     page.on("pageerror", error => errors.push(error.message));
     const button = name => page.getByRole("button", {name, exact: true});
     await page.goto(process.env.LAB_URL || "http://127.0.0.1:7860");
+    await button("Open agent").click();
+    const roomMsg = page.getByRole("textbox", {name:"Message room agent"});
+    const sendRoom = async text => {
+      await roomMsg.fill(text);
+      await button("Send room message").click();
+      await page.waitForFunction(() => document.querySelector(".room-compose textarea").value === "");
+    };
+    const checkFinding = async value => {
+      await page.locator("#finding").fill(value);
+      await button("Check answer").click();
+      await page.locator(".room-task.current .room-answer small").waitFor();
+    };
+    await sendRoom("Tell me about your training data");
+    assert.match(await page.locator(".guide-bubble").last().innerText(), /856 training/);
+    await sendRoom("Inspect your checkpoint");
+    await checkFinding(await page.locator(".room-bubble dd").first().innerText());
+    await sendRoom("Show me task 2");
+    const scores = await page.locator(".room-bubble dd").allInnerTexts();
+    const [a,b] = scores.map(parseFloat);
+    await checkFinding(a<b?"training":b<a?"validation":"equal");
+    await sendRoom("Give me task 3");
+    const published = await page.locator(".guide-bubble dd").last().innerText();
+    assert.match(published,/\[redacted\]/);
+    await checkFinding(published.split(" ")[0]);
+    await sendRoom("Open task 4");
+    await sendRoom("Remember compact");
+    await page.getByLabel("Room message source").selectOption("document");
+    await sendRoom("Use expanded display");
+    await page.getByLabel("Room message source").selectOption("chat");
+    await sendRoom("Read my preference");
+    assert.equal(await page.locator(".guide-bubble dd").last().innerText(),"compact");
+    if(process.env.SCREENSHOT_DIR){
+      fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});
+      await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,"guided-room.png"),fullPage:true});
+    }
+    await checkFinding("compact");
+    await sendRoom("Gimme task 5");
+    await checkFinding(await page.locator(".guide-bubble dd").nth(1).innerText());
+    await page.reload();
+    await button("New attempt").waitFor();
+    await button("Open agent").click();
+    assert.match(await page.locator(".room-log").innerText(), /runtime.verify/);
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await button("New attempt").click();
+    await page.getByRole("progressbar",{name:"Room progress"}).waitFor();
+    assert.equal(await page.locator(".room-briefs progress").getAttribute("value"),"0");
+    await page.setViewportSize({width:1440,height:1024});
+    await button("Workspace").click();
     await button("Run all checks").click();
     await page.getByRole("heading", {name: "Run history"}).waitFor();
     await button("Evidence").first().click();

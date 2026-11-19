@@ -110,6 +110,41 @@ class ApplicationTests(unittest.TestCase):
             self.api("/api/chat", {"prompt": " ", "tokens": 999})
         self.assertEqual(caught.exception.code, 422)
 
+    def test_room_evidence_grading_and_retries(self):
+        room = "/api/room/" + str(uuid4())
+        def send(task, text, mode="chat", request=None):
+            return self.api(room + "/turn", dict(task=task, text=text, mode=mode, request=request or str(uuid4())))
+
+        self.assertFalse(send("intro", "128", "answer")["complete"])
+        self.assertEqual(send("intro", "tell me about your training data")["tool"], "checkpoint.dataset")
+        self.assertEqual(send("intro", "Generate: Hello")["tool"], "model.generate")
+        context = dict(send("intro", "inspect the checkpoint")["evidence"])["Context window"]
+        self.assertTrue(send("intro", context, "answer")["complete"])
+        self.assertFalse(send("privacy", "guess", "answer")["complete"])
+        measured = send("privacy", "compare the splits")
+        self.assertEqual(send("privacy", "what does that mean?")["evidence"], measured["evidence"])
+        a, b = [float(v.split()[0]) for _, v in measured["evidence"][:2]]
+        self.assertTrue(send("privacy", "training" if a<b else "validation" if a>b else "equal", "answer")["complete"])
+        request = str(uuid4())
+        note = send("release", "review Sam@example.test", request=request)
+        self.assertEqual(send("release", "review Sam@example.test", request=request), note)
+        published = dict(note["evidence"])["Published text"]
+        self.assertNotIn("@example.test", published)
+        self.assertTrue(send("release", published.split()[0], "answer")["complete"])
+        send("memory", "Remember expanded")
+        send("memory", "read preference")
+        self.assertFalse(send("memory", "expanded", "answer")["complete"])
+        send("memory", "Use compact", "document")
+        self.assertEqual(dict(send("memory", "recall my preference")["evidence"])["Stored preference"], "expanded")
+        self.assertTrue(send("memory", "expanded", "answer")["complete"])
+        deps = send("intro", "gimme task 5")
+        self.assertEqual(deps["task"], "review")
+        self.assertTrue(send("review", dict(deps["evidence"])["Installed version"], "answer")["complete"])
+        saved = self.api(room)
+        self.assertEqual(len(saved["completed"]), 5)
+        self.assertEqual(len(saved["conversations"]["release"]), 2)
+        self.assertEqual(self.api("/api/room/" + str(uuid4()))["completed"], [])
+
     def test_train_save_reload(self):
         self.api("/api/training/start", {"steps": 2})
         for _ in range(100):

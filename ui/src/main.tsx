@@ -36,8 +36,10 @@ import {
   YAxis,
 } from "recharts";
 import "./style.css";
+import Room from "./Room";
 
 type Page =
+  | "Guided room"
   | "Testing lab"
   | "Agent console"
   | "Model playground"
@@ -119,6 +121,7 @@ const nav = [
   {
     group: "Workspace",
     items: [
+      ["Guided room", BookOpen],
       ["Testing lab", FlaskConical],
       ["Agent console", Bot],
       ["Model playground", MessageSquare],
@@ -219,8 +222,17 @@ function Chart({ points }: { points: Point[] }) {
     </div>
   );
 }
+function pageFromHash(): Page {
+  const pages = nav.flatMap((g) => g.items.map(([name]) => name));
+  return (
+    pages.find(
+      (name) =>
+        name.toLowerCase().replaceAll(" ", "-") === location.hash.slice(1),
+    ) || "Guided room"
+  );
+}
 function App() {
-  const [page, go] = useState<Page>("Testing lab"),
+  const [page, go] = useState<Page>(pageFromHash),
     [models, setModels] = useState<Record<Name, Info> | null>(null),
     [runs, setRuns] = useState<Run[]>([]),
     [active, setActive] = useState<Run | null>(null);
@@ -247,12 +259,18 @@ function App() {
   });
   const locked = useRef(false);
   const navigate = (p: Page) => {
+    location.hash = p.toLowerCase().replaceAll(" ", "-");
     go(p);
     setMenu(false);
     error("");
     setActive(null);
     window.scrollTo(0, 0);
   };
+  useEffect(() => {
+    const sync = () => go(pageFromHash());
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
   async function action(label: string, fn: () => Promise<void>) {
     if (locked.current) return;
     locked.current = true;
@@ -415,6 +433,8 @@ function App() {
       </div>
     );
   }
+  if (page === "Guided room")
+    return <Room session={session} exit={() => navigate("Testing lab")} />;
   return (
     <div className="shell">
       <aside className={menu ? "side opened" : "side"}>
