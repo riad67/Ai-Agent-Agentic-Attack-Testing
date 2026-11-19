@@ -109,5 +109,4 @@ node tests/browser.cjs
 ## Source and data credits
 
 - Kaggle corpus: **1000+ Data Science Concepts** by serdar altan, version 3, redistributed in its original ZIP under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Training normalizes whitespace and Unicode, groups by normalized question, and formats each pair as a document. [Dataset](https://www.kaggle.com/datasets/hserdaraltan/1000-data-science-concepts)
-- The BPE checkpoint and base Transformer implementation come from [riad67/nano-gpt-tokenize](https://github.com/riad67/nano-gpt-tokenize), which acknowledges [Aarohi Singla’s mini-GPT project](https://github.com/AarohiSingla/Build-a-Mini-GPT-Model-From-Scratch_with_tokenizer). The character model adds GELU, dropout and tied embeddings.
 - The reference video is linked and embedded through its YouTube player. [Watch the original](https://youtu.be/1WJdmvMoWgE)
