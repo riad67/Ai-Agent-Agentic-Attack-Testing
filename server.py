@@ -251,7 +251,7 @@ def agent(body: AgentRequest):
 
 class RoomInput(BaseModel):
     request: UUID
-    task: Literal["intro", "privacy", "release", "memory", "review"]
+    task: Literal["intro", "privacy", "release", "memory", "review", "budget"]
     mode: Literal["chat", "document", "answer"] = "chat"
     text: str = Field(min_length=1, max_length=1500)
 
@@ -273,8 +273,15 @@ def room_snapshot(session: UUID):
             rows = db.execute("SELECT payload FROM room_messages WHERE session=? AND task=? ORDER BY id DESC LIMIT 50",
                               (str(session), key)).fetchall()
             conversations[key] = [json.loads(row[0]) for row in reversed(rows)]
-    return {"lessons": LESSONS, "completed": [key for key, s in states.items() if s["complete"]],
+    return {"lessons": LESSONS, "budget_trials": budget_progress(states.get("budget", {})),
+            "completed": [key for key, s in states.items() if s["complete"]],
             "conversations": conversations}
+
+
+def budget_progress(state):
+    notes = state.get("notes", {})
+    return {"baseline": bool(notes.get("at_limit")), "boundary": "denied_calls" in notes,
+            "baseline_tokens": notes.get("baseline_tokens"), "denied_calls": notes.get("denied_calls")}
 
 
 @app.post("/api/room/{session}/turn")
@@ -283,7 +290,9 @@ def room_turn(session: UUID, body: RoomInput):
     if not text:
         raise HTTPException(422, "Enter a message or an answer.")
     key = body.task
-    jump = re.fullmatch(r"(?:.*?\b)?task\s*#?\s*([1-5])(?:\s+(?:demo|demonstration|please))?[.!? ]*", text, re.I)
+    jump = re.fullmatch(r"(?:.*?\b)?task\s*#?\s*([1-9])(?:\s+(?:demo|demonstration|please))?[.!? ]*", text, re.I)
+    if jump and int(jump[1]) > len(LESSONS):
+        jump = None
     if jump and body.mode == "chat":
         key = LESSONS[int(jump[1]) - 1]["key"]
     lesson = next(item for item in LESSONS if item["key"] == key)
@@ -303,6 +312,8 @@ def room_turn(session: UUID, body: RoomInput):
             outcome = respond(lesson, state, text, body.mode, models["kaggle"], splits, installed_package)
         turn = dict(outcome, task=key, complete=state["complete"], request=request, mode=body.mode, text=text,
                     at=datetime.now(timezone.utc).isoformat())
+        if key == "budget":
+            turn["budget_trials"] = budget_progress(state)
         db.execute("INSERT OR REPLACE INTO room_tasks VALUES (?,?,?)", (sid, key, json.dumps(state)))
         db.execute("INSERT INTO room_messages(session,task,request,payload) VALUES (?,?,?,?)",
                    (sid, key, request, json.dumps(turn)))

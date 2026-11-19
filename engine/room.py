@@ -4,6 +4,10 @@ from uuid import uuid4
 
 from .checks import SessionMemory, exercise, publish
 
+OUTPUT_LIMIT = 12
+BUDGET_BASELINE = f"Generate {OUTPUT_LIMIT} tokens: A small model"
+BUDGET_BOUNDARY = f"Generate {OUTPUT_LIMIT + 1} tokens: A small model"
+
 LESSONS = [
     dict(key="intro", title="Meet your model", role="Model operator", topic="Orientation",
          brief="Meet the character-level model behind the playground. Inspect its checkpoint, then try generating a short continuation.",
@@ -30,6 +34,12 @@ LESSONS = [
          goal="Choose torch, fastapi, or uvicorn and compare its installed version with the manifest.",
          question="What exact installed version did you verify?", prompt="Verify FastAPI",
          greeting="I can inspect three dependencies in this container: torch, fastapi and uvicorn. Which one should I verify?"),
+    dict(key="budget", title="Test a token budget", role="Resource controller", topic="OWASP LLM10:2025 · Unbounded Consumption",
+         brief="Every generated token costs compute. This exercise gives each request a small output allowance. Compare two requests that differ by one token.",
+         goal="Run the at-limit and over-limit examples. Compare their decisions and model calls.",
+         question="How many model calls did the rejected request make?", prompt=BUDGET_BASELINE,
+         examples=[BUDGET_BASELINE, BUDGET_BOUNDARY],
+         greeting="Choose an example or type “Generate 4 tokens: Hello”. I check the requested output budget before calling the local model."),
 ]
 KEYS = {lesson["key"] for lesson in LESSONS}
 EXPLANATIONS = {
@@ -38,6 +48,7 @@ EXPLANATIONS = {
     "release": "Model inversion concerns reconstruction of private attributes. This task measures a narrower control: whether publication removes a reserved test address and keeps the public reference.",
     "memory": "Memory poisoning can persist misleading information into later turns. The source policy is checked at write time, and reading the saved value independently verifies the result.",
     "review": "A generated dependency suggestion can contain an inaccurate name or version. Installed distribution metadata supplies the runtime version and the manifest supplies its intended pin.",
+    "budget": "An output cap puts an upper bound on decoding work for one request. The guard checks the requested maximum before inference. A model that reaches its end token early may produce fewer tokens. Aggregate traffic needs separate controls such as quotas.",
 }
 
 
@@ -53,6 +64,33 @@ def normalized(text):
     return " ".join(text.casefold().split()).strip(" .!?")
 
 
+def budget_trial(message, state, model):
+    match = re.fullmatch(r"generate\s+(\d{1,4})\s+tokens?\s*:\s*(.+)", message.strip(), re.I | re.S)
+    if not match or int(match[1]) < 1:
+        return result("Use a positive token count and some starting text. Try “Generate 4 tokens: Hello”.")
+    requested, prefix = int(match[1]), match[2].strip()
+    allowed = requested <= OUTPUT_LIMIT
+    calls = produced = 0
+    if allowed:
+        continuation, produced = model.complete(prefix, requested, 0.0, 42)
+        calls = 1
+        if requested == OUTPUT_LIMIT:
+            state["notes"]["at_limit"] = True
+            state["notes"]["baseline_tokens"] = produced
+    else:
+        state["notes"]["denied_calls"] = calls
+    evidence = [["Decision", "Allowed" if allowed else "Rejected"], ["Requested maximum", str(requested)],
+                ["Output limit", str(OUTPUT_LIMIT)], ["Model calls", str(calls)], ["Tokens generated", str(produced)]]
+    if allowed:
+        evidence.append(["Generated continuation", publish(continuation) or "(end of document)"])
+    state["evidence"] = evidence
+    if state["notes"].get("at_limit") and "denied_calls" in state["notes"]:
+        state["answer"] = str(state["notes"]["denied_calls"])
+    reply = ("The request fits the budget. MiniGPT sampled a continuation." if allowed else
+             "The requested output exceeds the budget. The server rejected it before decoding.")
+    return result(reply, "budget.check", evidence)
+
+
 def respond(lesson, state, message, mode, model, splits, packages):
     key = lesson["key"]
     query = normalized(message)
@@ -62,6 +100,9 @@ def respond(lesson, state, message, mode, model, splits, packages):
         aliases = {"train": "training", "held-out": "validation", "held out": "validation",
                    "validation split": "validation", "training split": "training", "same": "equal"}
         clean = re.sub(r"\s+tokens?$", "", query) if key == "intro" else query
+        if key == "budget":
+            clean = re.sub(r"\s+(?:model\s+)?calls?$", "", query)
+            clean = "0" if clean in ("zero", "none") else clean
         if (aliases.get(clean, clean) if key == "privacy" else clean) == state["answer"]:
             state["complete"] = True
             return result("Verified against your session evidence. You’ve completed this task.", "answer.check")
@@ -70,6 +111,8 @@ def respond(lesson, state, message, mode, model, splits, packages):
     if mode == "document" and key != "memory":
         return result("The document channel is available in the memory task.")
     if mode == "chat":
+        if key == "budget" and re.match(r"^generate\s", query):
+            return budget_trial(message, state, model)
         if query in ("hi", "hello", "hey", "who are you", "what can you do"):
             return result(lesson["greeting"])
         if re.search(r"\b(interpret|what does (that|this) mean|tell me more|explain (that|this|the result))\b", query):
@@ -79,6 +122,12 @@ def respond(lesson, state, message, mode, model, splits, packages):
             if term in query and re.search(r"\b(what is|explain|define|tell me about)\b", query):
                 return result(EXPLANATIONS[topic])
         if re.search(r"\b(hint|help|goal|what next|what now)\b", query):
+            if key == "budget":
+                if not state["notes"].get("at_limit"):
+                    return result(f"Start at the limit. Try “{BUDGET_BASELINE}” and inspect the generated continuation.")
+                if "denied_calls" not in state["notes"]:
+                    return result(f"Now change just the requested maximum. Try “{BUDGET_BOUNDARY}”.")
+                return result("Read the Model calls row of the rejected request and submit that number in Your finding.")
             if key == "memory":
                 hints = ["Set either compact or expanded as the operator.",
                          "Select Document and propose the opposite preference.",
@@ -96,6 +145,8 @@ def respond(lesson, state, message, mode, model, splits, packages):
             return result(EXPLANATIONS[key])
     values = []
     answer = None
+    if key == "budget":
+        return budget_trial(message, state, model)
     if key == "intro" and re.search(r"\b(generate|continue|sample)\b", query):
         prefix = message.partition(":")[2].strip() or "Question: What is learning?"
         text, count = model.complete(prefix, 40, 0.8, 42)

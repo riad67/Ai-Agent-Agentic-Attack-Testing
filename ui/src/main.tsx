@@ -434,7 +434,13 @@ function App() {
     );
   }
   if (page === "Guided room")
-    return <Room session={session} exit={() => navigate("Testing lab")} />;
+    return (
+      <Room
+        session={session}
+        model={models?.kaggle}
+        exit={() => navigate("Testing lab")}
+      />
+    );
   return (
     <div className="shell">
       <aside className={menu ? "side opened" : "side"}>

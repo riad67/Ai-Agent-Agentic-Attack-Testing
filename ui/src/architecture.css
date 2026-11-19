@@ -1,0 +1,236 @@
+.room-links,
+.arch-head,
+.arch-footer,
+.budget-caption,
+.room-feature {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.room-links {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.room .room-linkbtn {
+  color: #d9ebd8;
+}
+.room-feature {
+  background: #21352d;
+  border: 1px solid #45624d;
+  border-radius: 12px;
+  margin: 0 0 18px;
+  padding: 13px 17px;
+}
+.room-feature strong,
+.budget-caption h3 {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+.room-feature p,
+.arch-head p {
+  color: #b0c2be;
+  font-size: 13px;
+  margin: 3px 0 0;
+}
+.room-feature button,
+.arch-footer button {
+  border: 0;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #bcf585;
+  color: #1e3524;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 9px 12px;
+  white-space: nowrap;
+}
+.budget-trials {
+  padding: 12px 16px;
+  background: #1c2b2d;
+  border-bottom: 1px solid var(--line);
+}
+.budget-caption {
+  margin-bottom: 9px;
+}
+.budget-caption a {
+  color: #c2ddb9;
+  font-size: 11px;
+}
+.budget-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.budget-grid button {
+  text-align: left;
+  border: 1px solid #486158;
+  background: #253b32;
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.budget-grid button:hover {
+  border-color: var(--brand);
+}
+.budget-grid button:nth-child(2) {
+  background: #35342a;
+  border-color: #67634c;
+}
+.budget-grid strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.budget-grid code {
+  font-size: 11px;
+  color: #c5d4cd;
+  overflow-wrap: anywhere;
+}
+.budget-grid small {
+  color: #c7edb6;
+  font-size: 11px;
+}
+.budget-grid button:nth-child(2) small {
+  color: #efdbac;
+}
+.architecture {
+  color: #e7efed;
+  background: #1b292d;
+  border: 1px solid #405957;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: min(660px, 94vw);
+  width: 660px;
+  max-height: 88dvh;
+  box-shadow: 0 20px 80px #070d1080;
+}
+.architecture::backdrop {
+  background: #091013bf;
+}
+.arch-head h2 {
+  font-size: 24px;
+}
+.arch-head > button {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 1px solid #45605a;
+  border-radius: 8px;
+  color: #d2e4dc;
+  background: transparent;
+  display: grid;
+  place-items: center;
+}
+.arch-nav {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 7px;
+  margin: 21px 0 12px;
+}
+.arch-nav button {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid #435957;
+  border-radius: 8px;
+  background: #223236;
+  padding: 11px 4px;
+  color: #c1cfcd;
+  font-size: 12px;
+}
+.arch-nav button[aria-pressed="true"] {
+  color: #dbffc0;
+  background: #304738;
+  border-color: #8fba75;
+}
+.arch-detail {
+  min-height: 152px;
+  background: #172427;
+  border-left: 3px solid #acd880;
+  border-radius: 5px;
+  padding: 15px;
+}
+.arch-component {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #d0f0bb;
+  font-size: 14px;
+  font-weight: 600;
+}
+.arch-detail p {
+  color: #cededa;
+  line-height: 1.6;
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+.arch-observation {
+  margin-top: 10px;
+  display: grid;
+  gap: 4px;
+}
+.arch-observation small,
+.arch-footer span,
+.arch-model span {
+  font-size: 12px;
+  color: #a5b9b4;
+}
+.arch-observation code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  max-height: 70px;
+  overflow: auto;
+}
+.arch-model {
+  display: grid;
+  gap: 4px;
+  margin: 13px 0;
+  padding: 10px 0;
+  border-top: 1px solid #344847;
+  font-size: 13px;
+}
+.arch-footer {
+  margin-top: 14px;
+}
+@media (max-width: 800px) {
+  .room-intro {
+    flex-wrap: wrap;
+  }
+  .room-links {
+    justify-content: flex-start;
+  }
+  .room-links .room-video {
+    font-size: 12px;
+    gap: 6px;
+  }
+  .room-feature {
+    padding: 11px;
+  }
+  .room-feature strong {
+    font-size: 12px;
+  }
+  .budget-trials {
+    padding: 8px;
+  }
+  .arch-nav {
+    gap: 3px;
+  }
+  .arch-nav button {
+    font-size: 10px;
+  }
+  .architecture {
+    padding: 15px;
+  }
+  .room-agent:has(.budget-trials) {
+    min-height: 520px;
+  }
+}

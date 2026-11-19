@@ -19,6 +19,20 @@ from engine.model import ModelConfig, TinyGPT
 
 
 class ModelTests(unittest.TestCase):
+    def test_budget_guard_precedes_generation(self):
+        from unittest.mock import Mock
+        from engine.room import budget_trial, blank
+
+        model = Mock()
+        state = blank()
+        for prompt in ("Generate 13 tokens: A small model", "Generate 0 tokens: Hi", "Generate 4 tokens:   "):
+            budget_trial(prompt, state, model)
+        model.complete.assert_not_called()
+        model.complete.return_value = ("abc", 3)
+        trial = budget_trial("Generate 12 tokens: A small model", state, model)
+        model.complete.assert_called_once_with("A small model", 12, 0.0, 42)
+        self.assertEqual(dict(trial["evidence"])["Tokens generated"], "3")
+        self.assertEqual(state["answer"], "0")
     def test_tokenizer_and_partitions(self):
         chars, tokens, counts = corpus()
         self.assertEqual(counts, {"train": 856, "validation": 107, "test": 107})
@@ -142,6 +156,18 @@ class ApplicationTests(unittest.TestCase):
         self.assertTrue(send("review", dict(deps["evidence"])["Installed version"], "answer")["complete"])
         saved = self.api(room)
         self.assertEqual(len(saved["completed"]), 5)
+        self.assertFalse(send("budget", "0", "answer")["complete"])
+        over = send("budget", "Generate 13 tokens: A small model")
+        self.assertEqual(dict(over["evidence"])["Model calls"], "0")
+        self.assertFalse(send("budget", "0", "answer")["complete"])
+        self.assertIn("Start at the limit", send("budget", "hint")["reply"])
+        within = send("intro", "show me task 6")
+        self.assertEqual(within["task"], "budget")
+        self.assertEqual(dict(within["evidence"])["Decision"], "Allowed")
+        self.assertLessEqual(int(dict(within["evidence"])["Tokens generated"]), 12)
+        self.assertTrue(send("budget", "zero model calls", "answer")["complete"])
+        self.assertEqual(len(self.api(room)["completed"]), 6)
+        self.assertTrue(self.api(room)["budget_trials"]["boundary"])
         self.assertEqual(len(saved["conversations"]["release"]), 2)
         self.assertEqual(self.api("/api/room/" + str(uuid4()))["completed"], [])
 

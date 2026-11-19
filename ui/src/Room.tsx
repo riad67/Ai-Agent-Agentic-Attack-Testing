@@ -15,11 +15,19 @@ import {
   LoaderCircle,
   LockKeyhole,
   Send,
+  Workflow,
   Video,
 } from "lucide-react";
 import "./room.css";
+import Architecture from "./Architecture";
 
-type Key = "intro" | "privacy" | "release" | "memory" | "review";
+type Key = "intro" | "privacy" | "release" | "memory" | "review" | "budget";
+type Trials = {
+  baseline: boolean;
+  boundary: boolean;
+  baseline_tokens: number | null;
+  denied_calls: number | null;
+};
 type Lesson = {
   key: Key;
   title: string;
@@ -29,10 +37,12 @@ type Lesson = {
   goal: string;
   question: string;
   prompt: string;
+  examples?: string[];
   greeting: string;
 };
 type Mode = "chat" | "document" | "answer";
 type Turn = {
+  budget_trials?: Trials;
   task: Key;
   request: string;
   text: string;
@@ -44,17 +54,20 @@ type Turn = {
   at: string;
 };
 type Snapshot = {
+  budget_trials: Trials;
   lessons: Lesson[];
   completed: Key[];
   conversations: Record<Key, Turn[]>;
 };
-const taskKeys = ["intro", "privacy", "release", "memory", "review"];
+const taskKeys = ["intro", "privacy", "release", "memory", "review", "budget"];
 const video = "https://youtu.be/1WJdmvMoWgE";
 export default function Room({
   session: defaultSession,
+  model,
   exit,
 }: {
   session: string;
+  model?: React.ComponentProps<typeof Architecture>["model"];
   exit: () => void;
 }) {
   const [session, setSession] = useState(
@@ -62,10 +75,12 @@ export default function Room({
   );
   const [data, load] = useState<Snapshot | null>(null),
     [key, select] = useState<Key>(() => {
+      if (location.hash === "#llm10") return "budget";
       const k = localStorage.getItem("minigpt.room.task");
       return k && taskKeys.includes(k) ? (k as Key) : "intro";
     });
-  const [opened, open] = useState(false),
+  const [architecture, showArchitecture] = useState(false);
+  const [opened, open] = useState(location.hash === "#llm10"),
     [message, edit] = useState(""),
     [answer, setAnswer] = useState(""),
     [mode, setMode] = useState<"chat" | "document">("chat"),
@@ -97,6 +112,8 @@ export default function Room({
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [key, opened, turns.length]);
   function switchTask(k: Key, show: boolean) {
+    if (location.hash === "#llm10" && k !== "budget")
+      window.history.replaceState(null, "", "#guided-room");
     select(k);
     localStorage.setItem("minigpt.room.task", k);
     open(show);
@@ -112,6 +129,13 @@ export default function Room({
       composer.current?.focus({ preventScroll: true });
     });
   }
+  useEffect(() => {
+    const followShortcut = () => {
+      if (location.hash === "#llm10" && !pending.current) switchTask("budget", true);
+    };
+    window.addEventListener("hashchange", followShortcut);
+    return () => window.removeEventListener("hashchange", followShortcut);
+  }, []);
   async function send(text: string, kind: Mode) {
     if (!text.trim() || pending.current) return;
     const signature = JSON.stringify([key, kind, text]);
@@ -140,6 +164,7 @@ export default function Room({
         const history = old.conversations[turn.task];
         return {
           ...old,
+          budget_trials: turn.budget_trials ?? old.budget_trials,
           completed:
             turn.complete && !old.completed.includes(turn.task)
               ? [...old.completed, turn.task]
@@ -165,6 +190,11 @@ export default function Room({
     }
   }
   const idx = data?.lessons.findIndex((l) => l.key === key) ?? 0;
+  const nextLesson =
+    data &&
+    [...data.lessons.slice(idx + 1), ...data.lessons.slice(0, idx)].find(
+      (l) => !data.completed.includes(l.key),
+    );
   return (
     <div className="room">
       <div className="room-top">
@@ -194,19 +224,48 @@ export default function Room({
             </div>
             <h1>LLM security field lab</h1>
             <p>
-              Work through five briefs with a local agent. Inspect its evidence
-              and check your findings.
+              Choose a task, try an example, and use the agent’s evidence to
+              check your finding.
             </p>
           </div>
-          <a
-            className="room-video"
-            href={video}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Video size={16} /> Companion video <ArrowRight size={13} />
-          </a>
+          <div className="room-links">
+            <button
+              className="room-video room-linkbtn"
+              onClick={() => showArchitecture(true)}
+            >
+              <Workflow size={16} /> Agent architecture
+            </button>
+            <a
+              className="room-video"
+              href={video}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Video size={16} /> Companion video <ArrowRight size={13} />
+            </a>
+          </div>
         </div>
+        {data && key !== "budget" && (
+          <div className="room-feature">
+            <div>
+              <strong>OWASP LLM10 · Unbounded Consumption</strong>
+              <p>Try one request at the limit and one just beyond it.</p>
+            </div>
+            <button
+              disabled={working}
+              onClick={() => switchTask("budget", true)}
+            >
+              Open exercise <ArrowRight size={15} />
+            </button>
+          </div>
+        )}
+        {architecture && (
+          <Architecture
+            last={turns.at(-1)}
+            model={model}
+            close={() => showArchitecture(false)}
+          />
+        )}
         {error && (
           <div className="room-error" role="alert">
             {error}{" "}
@@ -315,6 +374,16 @@ export default function Room({
                             </span>
                           )}
                         </form>
+                        {done && nextLesson && (
+                          <button
+                            className="standby-button next-task"
+                            disabled={working}
+                            onClick={() => switchTask(nextLesson.key, true)}
+                          >
+                            Next task · {nextLesson.title}{" "}
+                            <ArrowRight size={14} />
+                          </button>
+                        )}
                       </div>
                     )}
                   </section>
@@ -322,7 +391,7 @@ export default function Room({
               })}
               {count === data.lessons.length && (
                 <div className="room-finished">
-                  <GraduationCap /> All five findings verified{" "}
+                  <GraduationCap /> All {data.lessons.length} findings verified{" "}
                   <button
                     className="standby-button"
                     disabled={working}
@@ -355,6 +424,47 @@ export default function Room({
                   Local
                 </div>
               </div>
+              {key === "budget" && lesson.examples && (
+                <div className="budget-trials">
+                  <div className="budget-caption">
+                    <h3>Compare two requests</h3>
+                    <a
+                      target="_blank"
+                      rel="noreferrer"
+                      href="https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/"
+                    >
+                      OWASP LLM10 ↗
+                    </a>
+                  </div>
+                  <div className="budget-grid">
+                    {lesson.examples.map((sample, i) => (
+                      <button
+                        key={sample}
+                        disabled={working}
+                        onClick={() => send(sample, "chat")}
+                      >
+                        <strong>
+                          {i === 0 ? "Run baseline" : "Test boundary"}{" "}
+                          <ArrowRight size={13} />
+                        </strong>
+                        <code>{sample}</code>
+                        {i === 0 && data.budget_trials.baseline && (
+                          <small>
+                            Allowed · {data.budget_trials.baseline_tokens}{" "}
+                            tokens generated
+                          </small>
+                        )}
+                        {i === 1 && data.budget_trials.boundary && (
+                          <small>
+                            Rejected · {data.budget_trials.denied_calls} model
+                            calls
+                          </small>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div
                 className="room-log"
                 ref={log}
@@ -428,13 +538,39 @@ export default function Room({
               </div>
               <div className="room-compose">
                 <div className="room-chips">
-                  <button
-                    disabled={working}
-                    onClick={() => send(lesson.prompt, "chat")}
-                  >
-                    {lesson.prompt}
-                    <ArrowDownLeft size={12} />
-                  </button>
+                  {key !== "budget" && (
+                    <button
+                      disabled={working}
+                      onClick={() => send(lesson.prompt, "chat")}
+                    >
+                      {lesson.prompt}
+                      <ArrowDownLeft size={12} />
+                    </button>
+                  )}
+                  {key === "budget" && (
+                    <button
+                      disabled={
+                        working ||
+                        (!data.budget_trials.baseline &&
+                          !data.budget_trials.boundary)
+                      }
+                      onClick={() => send("Explain the result", "chat")}
+                    >
+                      Explain result
+                    </button>
+                  )}
+                  {key === "budget" &&
+                    data.budget_trials.baseline &&
+                    data.budget_trials.boundary &&
+                    !data.completed.includes("budget") && (
+                      <button
+                        onClick={() =>
+                          document.getElementById("finding")?.focus()
+                        }
+                      >
+                        Enter finding <ArrowRight size={12} />
+                      </button>
+                    )}
                   <button
                     disabled={working}
                     onClick={() => send("Give me a hint", "chat")}

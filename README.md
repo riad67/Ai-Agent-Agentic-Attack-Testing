@@ -1,6 +1,6 @@
 # MiniGPT · LLM Security Field Lab
 
-A Docker-hosted learning room where you interview a local agent, inspect its tool results and submit findings. Five role-based tasks cover the model, training privacy, output disclosure, agent memory and dependency verification. The room opens alongside the model playground and training tools in the same application.
+A Docker-hosted learning room where you interview a local agent, inspect its tool results and submit findings. Six tasks cover the model, training privacy, output disclosure, agent memory, dependency verification and inference budgets. The room opens alongside the model playground and training tools in the same application.
 
 ![Guided room showing the memory custodian, the task objective and live chat evidence](docs/screenshots/guided-room.png)
 
@@ -23,7 +23,7 @@ The first build downloads Python 3.11, CPU PyTorch and the React build tools. Bo
 2. Type `show me task 2` to switch roles and run the split comparison. Ask `what does that mean?` to interpret your evidence. You can select any task directly in the left panel.
 3. In **Trace a memory write**, set an operator preference, switch the composer source to **Document**, and propose the opposite value. Switch back to **Operator** and ask the agent to read its memory. Submit the value you observe.
 
-Room progress and the latest 50 turns per task reload with the same browser session. Completing all five tasks unlocks **New attempt**. Use **Workspace** at the top right to access the other tools. [Companion video](https://youtu.be/1WJdmvMoWgE) · [Room format reference](https://tryhackme.com/room/llmsecurity)
+Room progress and the latest 50 turns per task reload with the same browser session. After each verified finding, **Next task** opens an unfinished brief. Completing all six tasks unlocks **New attempt**. Use **Workspace** at the top right to access the other tools. [Companion video](https://youtu.be/1WJdmvMoWgE) · [Room format reference](https://tryhackme.com/room/llmsecurity)
 
 | Task | What supplies the evidence |
 | --- | --- |
@@ -32,6 +32,40 @@ Room progress and the latest 50 turns per task reload with the same browser sess
 | Review a disclosure | A fresh synthetic case reference and a user-selectable test address passed through the publication filter. |
 | Trace a memory write | Independent write and read operations with a source check and session-scoped storage. |
 | Verify a dependency | The installed version of torch, FastAPI or Uvicorn compared with its pin in the running container. |
+| Test a token budget | A per-request output allowance checked before the local decoder runs, with observed decisions and output counts. |
+
+## Try OWASP LLM10 in two requests
+
+Open **Test a token budget** or use the [local exercise shortcut](http://127.0.0.1:7860/#llm10). Unbounded consumption can exhaust inference resources. This exercise isolates one mitigation by varying the requested output length while keeping the starting text fixed. [OWASP LLM10:2025](https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/)
+
+| Action | Example prompt | What to inspect |
+| --- | --- | --- |
+| Run baseline | `Generate 12 tokens: A small model` | The server allows one generation call. Its output length can be shorter than 12 if the decoder samples the end token. |
+| Test boundary | `Generate 13 tokens: A small model` | The request exceeds this task’s 12-token allowance. Both the call count and generated-token count are zero. |
+| Explain result | `Explain the result` | Read the interpretation alongside your latest observation. **Hint** suggests the next unfinished step. |
+
+Submit the number of model calls made by the rejected request. Here a call means one invocation of the generation routine. The budget applies to this exercise. Traffic quotas, concurrency limits and timeouts are separate controls. [Exercise screenshot](docs/screenshots/token-budget.png)
+
+## How a room turn works
+
+Open **Agent architecture** and select a component. After a turn, the walkthrough uses the current task’s latest recorded message, tool name and evidence. The model panel reads the active checkpoint’s configuration.
+
+```mermaid
+flowchart LR
+    UI[React room] --> API[FastAPI validation]
+    API --> Router[Task and source router]
+    Router --> Tools[Local inspection tools]
+    Router --> Guard[LLM10 output budget]
+    Guard -->|Within allowance| GPT[CPU MiniGPT decoder]
+    Guard -->|Over allowance| Evidence[Decision and counts]
+    GPT --> Evidence
+    Tools --> Evidence
+    Router -->|Hint or answer| Record[SQLite turn and task state]
+    Evidence --> Record
+    Record --> UI
+```
+
+The browser sends a session ID, request ID, task, source and text. FastAPI validates the request and reuses the stored response on a retry. Python handlers choose the operation. The server commits the evidence and updated task state in one transaction before returning the result. [Architecture screenshot](docs/screenshots/architecture.png)
 
 The role dialogue uses a local, task-aware router. Each observed result names the tool that produced it. The server grades findings against collected evidence, persists each turn and handles retried submissions using a request ID. Free-form text generation comes from the trained checkpoint when explicitly requested. The source selector is an educational simulation of provenance.
 

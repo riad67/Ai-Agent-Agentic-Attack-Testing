@@ -50,10 +50,26 @@ async function main() {
     await checkFinding("compact");
     await sendRoom("Gimme task 5");
     await checkFinding(await page.locator(".guide-bubble dd").nth(1).innerText());
+    await button("Open exercise").click();
+    await button("Hint").click();
+    await page.getByText(/Start at the limit\./).waitFor();
+    await page.getByRole("button",{name:/Run baseline/}).click();
+    await page.getByText(/Allowed · \d+ tokens generated/).waitFor();
+    await page.getByRole("button",{name:/Test boundary/}).click();
+    await page.getByText("Rejected · 0 model calls").waitFor();
+    await button("Agent architecture").click();
+    const diagram = page.getByRole("dialog",{name:"Agent architecture"});
+    await diagram.getByRole("button",{name:"Execution",exact:true}).click();
+    await diagram.getByText("Budget rejected · decoder skipped").waitFor();
+    if(process.env.SCREENSHOT_DIR) await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,"architecture.png")});
+    await page.keyboard.press("Escape");
+    await button("Enter finding").click();
+    if(process.env.SCREENSHOT_DIR) await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,"token-budget.png"),fullPage:true});
+    await checkFinding("0");
     await page.reload();
     await button("New attempt").waitFor();
     await button("Open agent").click();
-    assert.match(await page.locator(".room-log").innerText(), /runtime.verify/);
+    assert.match(await page.locator(".room-log").innerText(), /budget.check/);
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     await button("New attempt").click();
@@ -103,8 +119,17 @@ async function main() {
     await button("Navigation").click();
     await button("Testing lab").click();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.goto((process.env.LAB_URL || "http://127.0.0.1:7860") + "/#llm10");
+    await page.getByRole("heading",{name:"Resource controller"}).waitFor();
+    await button("Agent architecture").click();
+    for (const name of ["API","Router","Execution","Storage"]) {
+      await button("Next component").click();
+      assert.equal(await button(name).getAttribute("aria-pressed"),"true");
+    }
+    await button("Return to room").click();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors, []);
-    console.log("PASS desktop checks, evidence, agent memory, persistence, generation, training chart, video link and mobile navigation");
+    console.log("PASS six-task workflow, LLM10 decision comparison, architecture walkthrough, model workspace and mobile deep link");
   } finally {
     await browser.close();
   }
